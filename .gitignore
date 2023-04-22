@@ -1,0 +1,9 @@
+.ipynb_checkpoints/
+.vscode/
+deprecated/
+env/
+__pycache__/
+models/
+goemotions/
+*.pkl
+*.npy
