@@ -72,18 +72,17 @@ def load_sentiments(ds_dir):
         return json.load(file)
 
 
-def cleansing(df,
+def cleansing(texts,
               fix_unicode=True,
               fix_placeholders=True,
               fix_chars=True,
               fix_wordnums=True,
               fix_spelling=True,
               fix_punctuation=True):
-    '''Perform cleansing of dataframe with text column.
-    TODO: refactor to operate only text series
+    '''Perform cleansing of texts
 
     Args:
-        df (pd.DataFrame): DataFrame with text column
+        df (pd.Series): text column of dataset
         fix_unicode (bool, optional): Apply unidecode. Defaults to True.
         fix_placeholders (bool, optional): Remove placeholders from the
              dataset ([NAME], [RELIGION], etc). Defaults to True.
@@ -95,81 +94,32 @@ def cleansing(df,
             Defaults to True.
 
     Returns:
-        pd.DataFrame: dataframe with fixed series
+        pd.Series: cleased column
     '''
     if fix_unicode:
-        df['text'] = df['text'].apply(unidecode)
+        texts = texts.apply(unidecode)
     if fix_spelling:
-        contractions_map = {
-            "I'm": "I am",
-            "It's": "It is",
-            "He's": "He is",
-            "She's": "She is",
-            "that's": "that is",
-            "aren't": "are not",
-            "can't": "cannot",
-            "could've": "could have",
-            "couldn't": "could not",
-            "didn't": "did not",
-            "doesn't": "does not",
-            "don't": "do not",
-            "hadn't": "had not",
-            "hasn't": "has not",
-            "haven't": "have not",
-            "I've": "I have",
-            "isn't": "is not",
-            "mayn't": "may not",
-            "may've": "may have",
-            "mightn't": "might not",
-            "might've": "might have",
-            "mustn't": "must not",
-            "needn't": "need not",
-            "should've": "should have",
-            "shouldn't": "should not",
-            "there're": "there are",
-            "these're": "these are",
-            "gotta": "going to",
-            "wanna": "want to",
-            "wasn't": "was not",
-            "we're": "we are",
-            "we've": "we have",
-            "weren't": "were not",
-            "wouldnt": "would not",
-            "you're": "you are",
-            "you've": "you have",
-        }
-        for contraction, full_value in contractions_map.items():
-            df['text'] = df['text'].str.replace(contraction,
-                                                full_value,
-                                                regex=False,
-                                                case=False)
-        df['text'] = df['text'].str.replace(r"no{3,}", 'no', regex=True)
-        df['text'] = df['text'].str.replace(r"you{2,}", 'you', regex=True)
-        df['text'] = df['text'].str.replace(r'(^|[^\w])u([^\w]|$)',
-                                            ' you ',
-                                            regex=True)
+        texts = texts.str.replace(r"no{3,}", 'no', regex=True)
+        texts = texts.str.replace(r"you{2,}", 'you', regex=True)
+        texts = texts.str.replace(r'(^|[^\w])u([^\w]|$)', ' you ', regex=True)
     if fix_placeholders:
-        df['text'] = df['text'].str.replace(r'\[[A-Z]+\]', ' ', regex=True)
+        texts = texts.str.replace(r'\[[A-Z]+\]', ' ', regex=True)
     if fix_wordnums:
-        df['text'] = df['text'].str.replace(r'[^0-9\s]?[0-9]+[^0-9\s]?',
-                                            ' ',
-                                            regex=True)
+        texts = texts.str.replace(r'[^0-9\s]?[0-9]+[^0-9\s]?', ' ', regex=True)
     if fix_chars:
-        df['text'] = df['text'].str.replace(r"/r", '', regex=True)
-        df['text'] = df['text'].str.replace(r"[^A-Za-z0-9,\-\.\!\?\']",
-                                            ' ',
-                                            regex=True)
+        texts = texts.str.replace(r"/r", '', regex=True)
+        texts = texts.str.replace(r"[^A-Za-z0-9,\-\.\!\?\']", ' ', regex=True)
     if fix_punctuation:
         for char in (r'\.', ',', '!', r'\?'):
-            df['text'] = df['text'].str.replace(char + '{2,}',
-                                                char.replace('\\', ''),
-                                                regex=True)
-            df['text'] = df['text'].str.replace(r'\s*' + char + r'\s*',
-                                                char.replace('\\', '') + ' ',
-                                                regex=True)
-    df['text'] = df['text'].str.replace(r'\s+', ' ', regex=True)
-    df['text'] = df['text'].str.strip().str.lower()
-    return df
+            texts = texts.str.replace(char + '{2,}',
+                                      char.replace('\\', ''),
+                                      regex=True)
+            texts = texts.str.replace(r'\s*' + char + r'\s*',
+                                      char.replace('\\', '') + ' ',
+                                      regex=True)
+    texts = texts.str.replace(r'\s+', ' ', regex=True)
+    texts = texts.str.strip().str.lower()
+    return texts
 
 
 # TODO: Refactor this huge function
@@ -225,7 +175,7 @@ def make_dataframes(ds_dir,
     full_df = pd.concat(parts, axis=0, ignore_index=True)
     assert full_df.index.is_unique
     if clean:
-        full_df = cleansing(full_df)
+        full_df['text'] = cleansing(full_df['text'])
 
     if cut_neutral:
         next_max_qty = full_df['labels'].value_counts().sort_values(
@@ -257,7 +207,7 @@ def make_dataframes(ds_dir,
             train_parts.append(train_smpl)
         train_df = pd.concat(train_parts, axis=0, ignore_index=True)
         val_df = pd.concat(val_parts, axis=0, ignore_index=True)
-        test_df = pd.concat(test_parts, axis=0, ignore_index=True)                
+        test_df = pd.concat(test_parts, axis=0, ignore_index=True)
     else:
         if test_only_singles:
             single_labeled = ~full_df['labels'].str.contains(',')
@@ -297,7 +247,8 @@ def make_dataframes(ds_dir,
     for df in (train_df, val_df, test_df):
         assert df.index.is_unique
 
-    train_df = train_df.sample(frac=1, random_state=random).reset_index(drop=True)
+    train_df = train_df.sample(frac=1,
+                               random_state=random).reset_index(drop=True)
     return (train_df, val_df, test_df)
 
 
