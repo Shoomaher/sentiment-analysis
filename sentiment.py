@@ -10,7 +10,7 @@ import tensorflow as tf
 from sklearn.metrics import multilabel_confusion_matrix
 from tabulate import tabulate
 from tensorflow.data import Dataset
-from tensorflow.keras.metrics import Precision, Recall, TruePositives
+from tensorflow.keras.metrics import Precision, Recall
 from tensorflow_addons.metrics import F1Score
 from unidecode import unidecode
 
@@ -608,31 +608,30 @@ def to_sentiments(batch, sentiment_map):
     return sentimented
 
 
-# It is precision actually. Fix this
-def calc_TP_perc(test_ds, model, sentiment_map=None):
-    '''Calculate percentage of True Positive predictions over all qty of
-    labels in dataset
+def score_test_precision(test_ds, model, threshold=0.5, sentiment_map=None):
+    '''Score test and calculate precision. Select labels over threshold
+    prediction, select top predicted if all less.
 
     Args:
         test_ds (tf.data.Dataset): dataset for test
         model (tf.keras.Model): model to evaluate
+        threshold (float): threshold value over which predicted class is
+            activated. Defautls to 0.5
         sentiment_map (dict, optional): Map of sentiments to class. If
             provided - check sentiments prediction. Defaults to None.
 
     Returns:
-        float: percentage of TP predictions
+        float: precision on test dataset
     '''
-    tps = TruePositives()
-    all_count = 0
+    precsn = Precision()
     for texts, true_classes in test_ds:
         predictions = model(texts)
-        predicted_classes = (predictions.numpy() >= 0.5).astype(int)
+        predicted_classes = (predictions.numpy() >= threshold).astype(int)
         if sentiment_map:
             predicted_sentiments = to_sentiments(predicted_classes,
                                                  sentiment_map)
             true_sentiments = to_sentiments(true_classes, sentiment_map)
-            tps.update_state(true_sentiments, predicted_sentiments)
+            precsn.update_state(true_sentiments, predicted_sentiments)
         else:
-            tps.update_state(true_classes, predicted_classes)
-        all_count += true_classes.numpy().sum()
-    return (tps.result().numpy() / all_count)
+            precsn.update_state(true_classes, predicted_classes)
+    return precsn.result().numpy()
