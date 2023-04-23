@@ -10,9 +10,8 @@ import tensorflow as tf
 from sklearn.metrics import multilabel_confusion_matrix
 from tabulate import tabulate
 from tensorflow.data import Dataset
-from tensorflow.keras.metrics import Precision, Recall, TruePositives
+from tensorflow.keras.metrics import Precision, Recall
 from tensorflow_addons.metrics import F1Score
-from unidecode import unidecode
 
 EMOJI_MAP = {
     'admiration': '👏',
@@ -72,147 +71,15 @@ def load_sentiments(ds_dir):
         return json.load(file)
 
 
-def cleansing(df,
-              fix_unicode=True,
-              fix_placeholders=True,
-              fix_chars=True,
-              fix_wordnums=True,
-              fix_spelling=True,
-              fix_punctuation=True):
-    '''Perform cleansing of dataframe with text column.
-    TODO: refactor to operate only text series
-
-    Args:
-        df (pd.DataFrame): DataFrame with text column
-        fix_unicode (bool, optional): Apply unidecode. Defaults to True.
-        fix_placeholders (bool, optional): Remove placeholders from the
-             dataset ([NAME], [RELIGION], etc). Defaults to True.
-        fix_chars (bool, optional): Remove bad chars. Defaults to True.
-        fix_wordnums (bool, optional): Remove all nums. Defaults to True.
-        fix_spelling (bool, optional): Fix misspelled words and
-            contractions. Defaults to True.
-        fix_punctuation (bool, optional): Make propperstyle punctuation.
-            Defaults to True.
-
-    Returns:
-        pd.DataFrame: dataframe with fixed series
-    '''
-    if fix_unicode:
-        df['text'] = df['text'].apply(unidecode)
-    if fix_spelling:
-        contractions_map = {
-            "I'm": "I am",
-            "It's": "It is",
-            "He's": "He is",
-            "She's": "She is",
-            "that's": "that is",
-            "aren't": "are not",
-            "can't": "cannot",
-            "could've": "could have",
-            "couldn't": "could not",
-            "didn't": "did not",
-            "doesn't": "does not",
-            "don't": "do not",
-            "hadn't": "had not",
-            "hasn't": "has not",
-            "haven't": "have not",
-            "I've": "I have",
-            "isn't": "is not",
-            "mayn't": "may not",
-            "may've": "may have",
-            "mightn't": "might not",
-            "might've": "might have",
-            "mustn't": "must not",
-            "needn't": "need not",
-            "should've": "should have",
-            "shouldn't": "should not",
-            "there're": "there are",
-            "these're": "these are",
-            "gotta": "going to",
-            "wanna": "want to",
-            "wasn't": "was not",
-            "we're": "we are",
-            "we've": "we have",
-            "weren't": "were not",
-            "wouldnt": "would not",
-            "you're": "you are",
-            "you've": "you have",
-        }
-        for contraction, full_value in contractions_map.items():
-            df['text'] = df['text'].str.replace(contraction,
-                                                full_value,
-                                                regex=False,
-                                                case=False)
-        df['text'] = df['text'].str.replace(r"no{3,}", 'no', regex=True)
-        df['text'] = df['text'].str.replace(r"you{2,}", 'you', regex=True)
-        df['text'] = df['text'].str.replace(r'(^|[^\w])u([^\w]|$)',
-                                            ' you ',
-                                            regex=True)
-    if fix_placeholders:
-        df['text'] = df['text'].str.replace(r'\[[A-Z]+\]', ' ', regex=True)
-    if fix_wordnums:
-        df['text'] = df['text'].str.replace(r'[^0-9\s]?[0-9]+[^0-9\s]?',
-                                            ' ',
-                                            regex=True)
-    if fix_chars:
-        df['text'] = df['text'].str.replace(r"/r", '', regex=True)
-        df['text'] = df['text'].str.replace(r"[^A-Za-z0-9,\-\.\!\?\']",
-                                            ' ',
-                                            regex=True)
-    if fix_punctuation:
-        for char in (r'\.', ',', '!', r'\?'):
-            df['text'] = df['text'].str.replace(char + '{2,}',
-                                                char.replace('\\', ''),
-                                                regex=True)
-            df['text'] = df['text'].str.replace(r'\s*' + char + r'\s*',
-                                                char.replace('\\', '') + ' ',
-                                                regex=True)
-    df['text'] = df['text'].str.replace(r'\s+', ' ', regex=True)
-    df['text'] = df['text'].str.strip().str.lower()
-    return df
-
-
-# TODO: Refactor this huge function
-def make_dataframes(ds_dir,
-                    fraction,
-                    split_by_class=False,
-                    random=None,
-                    clean=True,
-                    test_only_singles=False,
-                    oversample_low=False,
-                    cut_neutral=False,
-                    low_threshold=200):
-    '''Create dataframes for modelling from the dataset dir. Read parts,
-    combine, preprocess and split on train, val, test
+def load_dfs(ds_dir):
+    '''Load dataframes from dataset dir
 
     Args:
         ds_dir (str): path to dataset dir
-        fraction (float): Percentage of split
-        split_by_class (bool, optional): Apply fraction for train/val/test
-            split class-wise Defaults to False.
-        random (int, optional): Random seed to use. Defaults to None.
-        clean (bool, optional): Apply cleansing. Defaults to True.
-        test_only_singles (bool, optional): Include only single-labelled
-            into test. Defaults to False.
-        oversample_low (bool, optional): Perform oversampling of low
-            classes. Defaults to False.
-        cut_neutral (bool, optional): Cut neutral class to next max class
-            rounded. Defaults to False.
-        low_threshold (int, optional): Threshold of elements in class to
-            consider it as low. Defaults to 200.
-
-    Raises:
-        RuntimeError: if not all classes were included into test
 
     Returns:
-        tuple: (train, val, test) dataframes
+        pd.DataFrame: all dataframes unioned into a single frame
     '''
-    assert isdir(ds_dir)
-    assert fraction > 0 and fraction < 1
-    if random is None:
-        random = int(datetime.now().timestamp())
-    print(f'Random seed: {random}')
-
     parts = []
     for partname in listdir(ds_dir):
         if not partname.endswith('.tsv'):
@@ -220,24 +87,66 @@ def make_dataframes(ds_dir,
         path = join(ds_dir, partname)
         part = pd.read_csv(path, sep='\t', names=['text', 'labels', 'id'])
         part.drop('id', axis=1, inplace=True)
-        part['text'] = part['text'].apply(unidecode)
         parts.append(part)
     full_df = pd.concat(parts, axis=0, ignore_index=True)
     assert full_df.index.is_unique
-    if clean:
-        full_df = cleansing(full_df)
+    return full_df
 
-    if cut_neutral:
-        next_max_qty = full_df['labels'].value_counts().sort_values(
-            ascending=False)[1]
-        next_max_qty = round(next_max_qty, -2)
-        neutral_mask = (full_df['labels'] == '27')
-        nutral_df = full_df[neutral_mask].sample(n=next_max_qty)
-        full_df = pd.concat([nutral_df, full_df[~neutral_mask]],
-                            sort=False,
-                            ignore_index=True)
-        assert full_df.index.is_unique
 
+def oversample(df, threshold):
+    '''Make oversampling of classes in dataframe that have qty of
+    elements lower than the threshold value. Oversampling is performed to
+    reach threshold. For example, if threshold is 500 and class 1 has qty
+    of 270 elements, values will be duplicated to reach 500
+
+    Args:
+        df (pd.DataFrame): dataframe to oversample
+        low_threshold (int): qty of elements under which the class is
+            considered to be low
+
+    Returns:
+        pd.DataFrame: updated dataframe
+    '''
+    df = df.copy()
+    single_labeled = ~df['labels'].str.contains(',')
+    class_counts = df.loc[single_labeled, 'labels'].value_counts()
+    low_classes = class_counts[class_counts < threshold].index.tolist()
+    recombined = []
+    for label in low_classes:
+        class_mask = (df['labels'].str.contains(f'(^|,){label}(,|$)',
+                                                regex=True))
+        class_df = df[class_mask]
+        df.drop(class_df.index, axis=0, inplace=True)
+        class_df = class_df.sample(n=threshold, replace=True)
+        recombined.append(class_df)
+    return pd.concat([df] + recombined, axis=0, ignore_index=True)
+
+
+def train_test_split(full_df,
+                     fraction,
+                     split_by_class=False,
+                     test_only_singles=True,
+                     random=None):
+    '''Perform split on train/val/test
+
+    Args:
+        full_df (pd.DataFrame): full dataset to split
+        fraction (float): percentage of split
+        split_by_class (bool, optional): Get fraction class-wise instead
+            of total split. Defaults to False.
+        test_only_singles (bool, optional): Include only single-labelled
+            into test. Defaults to False.
+        random (int, optional): Random seed to use. Defaults to None.
+
+    Raises:
+        RuntimeError: if not all classes were included into test
+
+    Returns:
+        tuple: (train, val, test) dataframes
+    '''
+    if random is None:
+        random = int(datetime.now().timestamp())
+    print(f'Random seed: {random}')
     if split_by_class:
         train_parts = []
         val_parts = []
@@ -257,7 +166,7 @@ def make_dataframes(ds_dir,
             train_parts.append(train_smpl)
         train_df = pd.concat(train_parts, axis=0, ignore_index=True)
         val_df = pd.concat(val_parts, axis=0, ignore_index=True)
-        test_df = pd.concat(test_parts, axis=0, ignore_index=True)                
+        test_df = pd.concat(test_parts, axis=0, ignore_index=True)
     else:
         if test_only_singles:
             single_labeled = ~full_df['labels'].str.contains(',')
@@ -276,28 +185,71 @@ def make_dataframes(ds_dir,
         train_df = full_df.drop(test_df.index, axis=0)
         val_df = train_df.sample(frac=(1 - fraction), random_state=random)
         train_df.drop(val_df.index, axis=0, inplace=True)
+    return (train_df, val_df, test_df)
 
+
+def drop_labels(df, labels):
+    '''Remove label from the dataset. It will be removed from the list of
+    element labels. Elements without labels will be dropped. Please note
+    that this function updates the original dataframe instead of
+    returning updated.
+
+    Args:
+        df (pd.DataFrame): dataframe to remove label from
+        label (list): list of labels to drop
+    '''
+    to_drop = [str(label) for label in labels]
+    df['labels'] = df['labels'].str.split(',', expand=False)
+    df['labels'] = df['labels'].map(
+        lambda row: ','.join([x for x in row if x not in to_drop]))
+    unlabelled = (df['labels'] == '')
+    df.drop(df[unlabelled].index, axis=0, inplace=True)
+
+
+def make_dataframes(ds_dir,
+                    fraction,
+                    split_by_class=False,
+                    random=None,
+                    test_only_singles=False,
+                    drop_neutral=False,
+                    oversample_low=False,
+                    low_threshold=200):
+    '''Create dataframes for modelling from the dataset dir. Read parts,
+    combine, preprocess and split on train, val, test
+
+    Args:
+        ds_dir (str): path to dataset dir
+        fraction (float): Percentage of split
+        split_by_class (bool, optional): Apply fraction for train,
+            validation, test split class-wise. Defaults to False.
+        random (int, optional): Random seed to use. Defaults to None.
+        test_only_singles (bool, optional): Include only single-labelled
+            into test. Defaults to False.
+        drop_neutral (bool, optional): Drop neutral labels. Defaults to
+            False.
+        oversample_low (bool, optional): Perform oversampling of low
+            classes. Defaults to False.
+        low_threshold (int, optional): Threshold of elements in class to
+            consider it as low. Defaults to 200.
+
+    Returns:
+        tuple: (train, val, test) dataframes
+    '''
+    assert isdir(ds_dir)
+    assert fraction > 0 and fraction < 1
+
+    full_df = load_dfs(ds_dir)
+    if drop_neutral:
+        drop_labels(full_df, [27])
+    train_df, val_df, test_df = train_test_split(full_df, fraction,
+                                                 split_by_class,
+                                                 test_only_singles)
     if oversample_low:
-        single_labeled = ~train_df['labels'].str.contains(',')
-        class_counts = train_df.loc[single_labeled, 'labels'].value_counts()
-        low_classes = class_counts[class_counts < low_threshold].index.tolist()
-        recombined = []
-        for label in low_classes:
-            class_mask = (train_df['labels'].str.contains(r'(^|,)' + label +
-                                                          r'(,|$)',
-                                                          regex=True))
-            class_df = train_df[class_mask]
-            train_df.drop(class_df.index, axis=0, inplace=True)
-            class_df = class_df.sample(n=low_threshold, replace=True)
-            recombined.append(class_df)
-        train_df = pd.concat([train_df] + recombined,
-                             axis=0,
-                             ignore_index=True)
-
+        train_df = oversample(train_df, low_threshold)
     for df in (train_df, val_df, test_df):
         assert df.index.is_unique
-
-    train_df = train_df.sample(frac=1, random_state=random).reset_index(drop=True)
+    train_df = train_df.sample(frac=1, random_state=random)
+    train_df.reset_index(drop=True, inplace=True)
     return (train_df, val_df, test_df)
 
 
@@ -428,13 +380,13 @@ def test_examples(model, classes):
         'He is desperate in this cruel world',
         'I love the feeling when my girlfriend hugs me',
         'I hate monday mornings',
-        'Look forward to seeing you today',
         'Merry Christmas! I told Santa you were good this year and '
         'asked him to bring you a year full of joy and pleasure ',
         'brilliant! Such a detailed review, it was a pleasure, thank you! '
         'Guys, make sure you find time to read :) Aaaaand you can actually choose sth new)',
         'I have the new pan for pancakes.',
-        "I'm wearing a special red ribbon for luck.",
+        'Relax, bro. Take it easy',
+        "WTF? Are they kidding us? I'm gonna argue with the manager!",
         'OMG, yep!!! That is the final answer! Thank you so much!',
         'I am so glad this is over',
         'Sorry, I feel bad for having said that',
@@ -443,8 +395,6 @@ def test_examples(model, classes):
         "What if she knows? We don't know what to do",
         'WOW! I am really into cinema',
         "What if I don't pass the exam? I will never get this driving license!",
-        'I have just come up with the idea of birthday present. Let me explain...',
-        "Don't worry, all of us will pass this test. It is just to 'evaluate our knowledge.",
         'I miss my grandad. I am feeling so lonely after her death. '
         'I just lost my closest person..',
         'Skipping lessons is so miserable for Oxford stundets!',
@@ -460,8 +410,7 @@ def test_examples(model, classes):
         if predicted.any():
             emotions = np_classes[predicted]
         else:
-            print('WARNING! Model not sure (all predictions less than 0.5)')
-            emotions = np_classes[[predictions.numpy().argmax()]]
+            emotions = []
         with_emojis = []
         for emotion in emotions:
             try:
@@ -518,15 +467,21 @@ def plot_conf_mtrx_all(model, test_ds, classes, normalized=True):
     plt.show()
 
 
-def plot_conf_mtrx_per_class(model, test_ds, classes, select_max_class=False):
+def plot_conf_mtrx_per_class(model,
+                             test_ds,
+                             classes,
+                             threshold=0.5,
+                             select_max_class=False):
     '''Plot confusion matrixes for each class separately
 
     Args:
         model (tf.keras.Model): model to test
         test_ds (tf.data.Data): dataset for test
         classes (list): list of emotions
+        threshold (float): threshold prediction value above which the
+            class is activated. Defaults to 0.5
         select_max_class (bool, optional): Select class with max
-            prediction. If not - use 0.5 threshold. Defaults to False.
+            prediction. If not - use threshold. Defaults to False.
     '''
     cm_sum = None
     for x, y_true in test_ds:
@@ -537,7 +492,7 @@ def plot_conf_mtrx_per_class(model, test_ds, classes, select_max_class=False):
             y_top[np.arange(y_pred.shape[0]), max_indices] = 1
             y_pred = y_top
         else:
-            y_pred = (y_pred >= 0.5)
+            y_pred = (y_pred >= threshold)
         cm_batch = multilabel_confusion_matrix(y_true, y_pred)
         if cm_sum is None:
             cm_sum = cm_batch
@@ -657,31 +612,24 @@ def to_sentiments(batch, sentiment_map):
     return sentimented
 
 
-# It is precision actually. Fix this
-def calc_TP_perc(test_ds, model, sentiment_map=None):
-    '''Calculate percentage of True Positive predictions over all qty of
-    labels in dataset
+def score_test(test_ds, model, metrics, threshold=0.5, sentiment_map=None):
+    '''Score test dataframe and run metrics
 
     Args:
         test_ds (tf.data.Dataset): dataset for test
         model (tf.keras.Model): model to evaluate
+        metrics (list): list of tensorflow metrics
+        threshold (float): threshold value over which predicted class is
+            activated. Defautls to 0.5
         sentiment_map (dict, optional): Map of sentiments to class. If
             provided - check sentiments prediction. Defaults to None.
 
-    Returns:
-        float: percentage of TP predictions
     '''
-    tps = TruePositives()
-    all_count = 0
-    for texts, true_classes in test_ds:
+    for texts, true in test_ds:
         predictions = model(texts)
-        predicted_classes = (predictions.numpy() >= 0.5).astype(int)
+        predicted = (predictions.numpy() >= threshold).astype(int)
         if sentiment_map:
-            predicted_sentiments = to_sentiments(predicted_classes,
-                                                 sentiment_map)
-            true_sentiments = to_sentiments(true_classes, sentiment_map)
-            tps.update_state(true_sentiments, predicted_sentiments)
-        else:
-            tps.update_state(true_classes, predicted_classes)
-        all_count += true_classes.numpy().sum()
-    return (tps.result().numpy() / all_count)
+            predicted = to_sentiments(predicted, sentiment_map)
+            true = to_sentiments(true, sentiment_map)
+        for m in metrics:
+            m.update_state(true, predicted)
