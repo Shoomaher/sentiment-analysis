@@ -1,8 +1,7 @@
-import tensorflow as tf
 import tensorflow_text as tf_text
 import tensorflow_hub as hub
 from tensorflow.keras import Model
-from tensorflow.keras.layers import (Input, Dropout, Dense)
+from tensorflow.keras.layers import (Dropout, Dense)
 from sentiment.standardize import TextStandardizeLayer
 
 BERT_MODEL_TF_HUB = {
@@ -115,31 +114,29 @@ BERT_PREPROCESS_TF_HUB = {
     'https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3',
     'small_bert/bert_en_uncased_L-12_H-768_A-12':
     'https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3',
-    'bert_multi_cased_L-12_H-768_A-12':
-    'https://tfhub.dev/tensorflow/bert_multi_cased_preprocess/3',
 }
 
 
 class BertSentimentModel(Model):
+    '''BERT-based sentiment classification model. BERT model
+    and its preprocess is imported from Tensortflow Hub. Model solves
+    multiclass multilabel classification problem, so output dense
+    layer uses sigmoid activation function.
+
+    Text standardization and preprocess layers are applied inside, so
+    model can take raw strings as inputs.
+
+    Args:
+        bert_name (str): name of BERT model to use (see
+            https://github.com/google-research/bert).
+            Only uncased models can be used
+        dropout_rate (float): rate of internal droputs
+        dense_units (int): qty of units for internal dense layer
+        classes (list): list of classes to predict (used to determine
+            output layer units)
+    '''
 
     def __init__(self, bert_name, dropout_rate, dense_units, classes):
-        '''Create BERT-based sentiment classification model. BERT model
-        and its preprocess is imported from Tensortflow Hub. Model solves
-        multiclass multilabel classification problem, so output dense
-        layer uses sigmoid activation function.
-
-        Text standardization and preprocess layers are applied inside, so
-        model can take raw strings as inputs.
-
-        Args:
-            bert_name (str): name of BERT model to use (see
-                https://github.com/google-research/bert). Only uncased
-                models can be used
-            dropout_rate (float): rate of internal droputs
-            dense_units (int): qty of units for internal dense layer
-            classes (list): list of classes to predict (used to determine
-                output layer units)
-        '''
         super(BertSentimentModel, self).__init__()
         self.standardizer = TextStandardizeLayer()
         self.preprocess = hub.KerasLayer(BERT_PREPROCESS_TF_HUB[bert_name],
