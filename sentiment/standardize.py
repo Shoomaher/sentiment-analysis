@@ -138,7 +138,7 @@ class TextStandardizeLayer(tf.keras.layers.Layer):
         return TextStandardizeLayer.vect_unidecode(batch.numpy())
 
     @tf.autograph.experimental.do_not_convert
-    def call(self, text_t):
+    def call(self, text_t, training=False):
         text_t = tf.py_function(TextStandardizeLayer.__unidecode, [text_t],
                                 tf.string,
                                 name='apply_unidecode')
