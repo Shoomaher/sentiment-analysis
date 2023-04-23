@@ -113,15 +113,16 @@ class TextStandardizeLayer(tf.keras.layers.Layer):
         'WUF': 'Where Are You From?',
         'W8': 'Wait',
     }
-    vect_unidecode = np.vectorize(unidecode)
+    vect_unidecode = np.vectorize(lambda x: unidecode(x.decode()))
 
     def __init__(self):
         super(TextStandardizeLayer, self).__init__()
 
     @staticmethod
     def __unidecode(batch):
-        return TextStandardizeLayer.vect_unidecode(batch.numpy().astype(str))
+        return TextStandardizeLayer.vect_unidecode(batch.numpy())
 
+    @tf.autograph.experimental.do_not_convert
     @staticmethod
     def standardization(text_t):
         text_t = tf.py_function(TextStandardizeLayer.__unidecode, [text_t],
