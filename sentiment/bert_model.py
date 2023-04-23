@@ -123,6 +123,23 @@ BERT_PREPROCESS_TF_HUB = {
 class BertSentimentModel(Model):
 
     def __init__(self, bert_name, dropout_rate, dense_units, classes):
+        '''Create BERT-based sentiment classification model. BERT model
+        and its preprocess is imported from Tensortflow Hub. Model solves
+        multiclass multilabel classification problem, so output dense
+        layer uses sigmoid activation function.
+
+        Text standardization and preprocess layers are applied inside, so
+        model can take raw strings as inputs.
+
+        Args:
+            bert_name (str): name of BERT model to use (see
+                https://github.com/google-research/bert). Only uncased
+                models can be used
+            dropout_rate (float): rate of internal droputs
+            dense_units (int): qty of units for internal dense layer
+            classes (list): list of classes to predict (used to determine
+                output layer units)
+        '''
         super(BertSentimentModel, self).__init__()
         self.standardizer = TextStandardizeLayer()
         self.preprocess = hub.KerasLayer(BERT_PREPROCESS_TF_HUB[bert_name],
