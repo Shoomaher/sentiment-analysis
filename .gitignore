@@ -4,6 +4,6 @@ deprecated/
 env/
 __pycache__/
 models/
-goemotions/
+goemotions_data/
 *.pkl
 *.npy
