@@ -99,6 +99,49 @@ def cleansing(texts,
     if fix_unicode:
         texts = texts.apply(unidecode)
     if fix_spelling:
+        contractions_map = {
+            "I'm": "I am",
+            "It's": "It is",
+            "He's": "He is",
+            "She's": "She is",
+            "that's": "that is",
+            "aren't": "are not",
+            "can't": "cannot",
+            "could've": "could have",
+            "couldn't": "could not",
+            "didn't": "did not",
+            "doesn't": "does not",
+            "don't": "do not",
+            "hadn't": "had not",
+            "hasn't": "has not",
+            "haven't": "have not",
+            "I've": "I have",
+            "isn't": "is not",
+            "mayn't": "may not",
+            "may've": "may have",
+            "mightn't": "might not",
+            "might've": "might have",
+            "mustn't": "must not",
+            "needn't": "need not",
+            "should've": "should have",
+            "shouldn't": "should not",
+            "there're": "there are",
+            "these're": "these are",
+            "gotta": "going to",
+            "wanna": "want to",
+            "wasn't": "was not",
+            "we're": "we are",
+            "we've": "we have",
+            "weren't": "were not",
+            "wouldnt": "would not",
+            "you're": "you are",
+            "you've": "you have",
+        }
+        for contraction, full_value in contractions_map.items():
+            texts = texts.str.replace(contraction,
+                                      full_value,
+                                      regex=False,
+                                      case=False)
         texts = texts.str.replace(r"no{3,}", 'no', regex=True)
         texts = texts.str.replace(r"you{2,}", 'you', regex=True)
         texts = texts.str.replace(r'(^|[^\w])u([^\w]|$)', ' you ', regex=True)
