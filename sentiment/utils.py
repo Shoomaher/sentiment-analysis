@@ -243,7 +243,8 @@ def make_dataframes(ds_dir,
         drop_labels(full_df, [27])
     train_df, val_df, test_df = train_test_split(full_df, fraction,
                                                  split_by_class,
-                                                 test_only_singles)
+                                                 test_only_singles,
+                                                 random=random)
     if oversample_low:
         train_df = oversample(train_df, low_threshold)
     for df in (train_df, val_df, test_df):
