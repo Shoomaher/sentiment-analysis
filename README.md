@@ -36,7 +36,7 @@ __⚠️ Please note that this layer has a dependency of [unidecode lib](https:/
 
 ### 🛠️ Tools
 In `utils.py` you can find various handy functions used for modelling and analysis.
-You can use notebooks as examples to develop your own models  
+You can use notebooks as examples to develop your own models. See `requirements.txt` for list of required libs.   
 
 ### ✅ Results
 Using `small_bert/bert_en_uncased_L-2_H-128_A-2` classifier reached the following
