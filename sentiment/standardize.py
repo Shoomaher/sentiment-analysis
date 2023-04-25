@@ -139,6 +139,7 @@ class TextStandardizeLayer(tf.keras.layers.Layer):
 
     @tf.autograph.experimental.do_not_convert
     def call(self, text_t, training=False):
+        in_shape = tf.shape(text_t)
         text_t = tf.py_function(TextStandardizeLayer.__unidecode, [text_t],
                                 tf.string,
                                 name='apply_unidecode')
@@ -219,4 +220,4 @@ class TextStandardizeLayer(tf.keras.layers.Layer):
                                           name='fix_spaces')
         text_t = tf.strings.strip(text_t)
         text_t = tf.strings.lower(text_t)
-        return text_t
+        return tf.reshape(text_t, in_shape)
