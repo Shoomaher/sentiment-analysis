@@ -345,23 +345,24 @@ def print_metrics(metrics, floatfmt='.5f'):
                    floatfmt=floatfmt))
 
 
-def plot_history(metrics):
+def plot_history(metrics, title):
     '''Plot metrics history over model fit epochs
 
     Args:
         metrics (dict): Metrics to plot
+        title (str): Title to add
     '''
     fig = plt.figure(figsize=(10, 6))
     fig.tight_layout()
-    plot_id = 1
     for metric, values in metrics.items():
         epochs = range(1, len(values) + 1)
-        plt.subplot(2, 1, plot_id)
+        plt.subplot(2, 1, 1)
         plt.plot(epochs, values, label=metric)
-        plt.title('Model fit history')
-        plt.ylabel(metric)
+        plt.title(title)
+        plt.ylabel('Metric value')
         plt.xlabel('Epochs')
         plt.legend()
+    plt.show()
 
 
 def test_examples(model, classes):
