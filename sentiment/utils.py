@@ -459,12 +459,9 @@ def plot_conf_mtrx_all(model, test_ds, classes, normalized=True):
     thresh = mtrx.max() / 2.
     for i in range(mtrx.shape[0]):
         for j in range(mtrx.shape[1]):
-            ax.text(j,
-                    i,
-                    format(mtrx[i, j], '.4f'),
-                    ha="center",
-                    va="center",
-                    color="white" if mtrx[i, j] > thresh else "black")
+            color = 'white' if mtrx[i, j] > thresh else 'black'
+            val_fmt = '{:.4f}'.format(mtrx[i, j])
+            ax.text(j, i, val_fmt, ha='center', va='center', color=color)
     fig.tight_layout()
     plt.show()
 
@@ -487,7 +484,7 @@ def plot_conf_mtrx_per_class(model,
     '''
     cm_sum = None
     for x, y_true in test_ds:
-        y_pred = model.predict(x)
+        y_pred = model(x)
         if select_max_class:
             max_indices = np.argmax(y_pred, axis=1)
             y_top = np.zeros_like(y_pred)
@@ -501,8 +498,9 @@ def plot_conf_mtrx_per_class(model,
         else:
             cm_sum += cm_batch
 
-    fig, axs = plt.subplots(10,
-                            3,
+    in_row = 3
+    fig, axs = plt.subplots(int(np.ceil(len(classes) / in_row)),
+                            in_row,
                             figsize=(15, 50),
                             sharex=False,
                             sharey=False,
@@ -511,28 +509,28 @@ def plot_conf_mtrx_per_class(model,
                                 'wspace': 0.3
                             })
     for i, label in enumerate(classes):
-        row_idx = i // 3
-        col_idx = i % 3
-        axis = axs[row_idx, col_idx]
-        im = axis.imshow(cm_sum[i], interpolation='nearest', cmap=plt.cm.Blues)
-        cbar = axis.figure.colorbar(im, ax=axis)
+        row_idx = i // in_row
+        col_idx = i % in_row
+        ax = axs[row_idx, col_idx]
+        im = ax.imshow(cm_sum[i], interpolation='nearest', cmap=plt.cm.Blues)
+        cbar = ax.figure.colorbar(im, ax=ax)
         cbar.ax.set_ylabel('Count', rotation=-90, va="bottom")
         for row in range(2):
             for col in range(2):
-                axs[row_idx, col_idx].text(col,
-                                           row,
-                                           str(cm_sum[i][row][col]),
-                                           ha='center',
-                                           va='center',
-                                           color='black',
-                                           fontsize=8)
-        axis.set_xticks(np.arange(2))
-        axis.set_yticks(np.arange(2))
-        axis.set_xticklabels(['False', 'True'], fontsize=8)
-        axis.set_yticklabels(['False', 'True'], fontsize=8)
-        axis.set_xlabel('Predicted label', fontsize=8)
-        axis.set_ylabel('True label', fontsize=8)
-        axis.set_title(f'Confusion matrix for class {label}', fontsize=8)
+                ax.text(col,
+                        row,
+                        str(cm_sum[i][row][col]),
+                        ha='center',
+                        va='center',
+                        color='black',
+                        fontsize=8)
+        ax.set_xticks(np.arange(2))
+        ax.set_yticks(np.arange(2))
+        ax.set_xticklabels(['False', 'True'], fontsize=8)
+        ax.set_yticklabels(['False', 'True'], fontsize=8)
+        ax.set_xlabel('Predicted label', fontsize=8)
+        ax.set_ylabel('True label', fontsize=8)
+        ax.set_title(f'Confusion matrix for class {label}', fontsize=8)
     plt.show()
 
 
