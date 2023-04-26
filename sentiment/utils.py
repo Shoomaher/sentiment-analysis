@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from sklearn.metrics import multilabel_confusion_matrix
+from sklearn.metrics import auc, multilabel_confusion_matrix, roc_curve
 from tabulate import tabulate
 from tensorflow.data import Dataset
 from tensorflow.keras.metrics import Precision, Recall
@@ -345,23 +345,24 @@ def print_metrics(metrics, floatfmt='.5f'):
                    floatfmt=floatfmt))
 
 
-def plot_history(metrics):
+def plot_history(metrics, title):
     '''Plot metrics history over model fit epochs
 
     Args:
         metrics (dict): Metrics to plot
+        title (str): Title to add
     '''
     fig = plt.figure(figsize=(10, 6))
     fig.tight_layout()
-    plot_id = 1
     for metric, values in metrics.items():
         epochs = range(1, len(values) + 1)
-        plt.subplot(2, 1, plot_id)
+        plt.subplot(2, 1, 1)
         plt.plot(epochs, values, label=metric)
-        plt.title('Model fit history')
-        plt.ylabel(metric)
+        plt.title(title)
+        plt.ylabel('Metric value')
         plt.xlabel('Epochs')
         plt.legend()
+    plt.show()
 
 
 def test_examples(model, classes):
@@ -458,12 +459,9 @@ def plot_conf_mtrx_all(model, test_ds, classes, normalized=True):
     thresh = mtrx.max() / 2.
     for i in range(mtrx.shape[0]):
         for j in range(mtrx.shape[1]):
-            ax.text(j,
-                    i,
-                    format(mtrx[i, j], '.4f'),
-                    ha="center",
-                    va="center",
-                    color="white" if mtrx[i, j] > thresh else "black")
+            color = 'white' if mtrx[i, j] > thresh else 'black'
+            val_fmt = '{:.4f}'.format(mtrx[i, j])
+            ax.text(j, i, val_fmt, ha='center', va='center', color=color)
     fig.tight_layout()
     plt.show()
 
@@ -486,7 +484,7 @@ def plot_conf_mtrx_per_class(model,
     '''
     cm_sum = None
     for x, y_true in test_ds:
-        y_pred = model.predict(x)
+        y_pred = model(x)
         if select_max_class:
             max_indices = np.argmax(y_pred, axis=1)
             y_top = np.zeros_like(y_pred)
@@ -500,8 +498,9 @@ def plot_conf_mtrx_per_class(model,
         else:
             cm_sum += cm_batch
 
-    fig, axs = plt.subplots(10,
-                            3,
+    in_row = 3
+    fig, axs = plt.subplots(int(np.ceil(len(classes) / in_row)),
+                            in_row,
                             figsize=(15, 50),
                             sharex=False,
                             sharey=False,
@@ -510,28 +509,28 @@ def plot_conf_mtrx_per_class(model,
                                 'wspace': 0.3
                             })
     for i, label in enumerate(classes):
-        row_idx = i // 3
-        col_idx = i % 3
-        axis = axs[row_idx, col_idx]
-        im = axis.imshow(cm_sum[i], interpolation='nearest', cmap=plt.cm.Blues)
-        cbar = axis.figure.colorbar(im, ax=axis)
+        row_idx = i // in_row
+        col_idx = i % in_row
+        ax = axs[row_idx, col_idx]
+        im = ax.imshow(cm_sum[i], interpolation='nearest', cmap=plt.cm.Blues)
+        cbar = ax.figure.colorbar(im, ax=ax)
         cbar.ax.set_ylabel('Count', rotation=-90, va="bottom")
         for row in range(2):
             for col in range(2):
-                axs[row_idx, col_idx].text(col,
-                                           row,
-                                           str(cm_sum[i][row][col]),
-                                           ha='center',
-                                           va='center',
-                                           color='black',
-                                           fontsize=8)
-        axis.set_xticks(np.arange(2))
-        axis.set_yticks(np.arange(2))
-        axis.set_xticklabels(['False', 'True'], fontsize=8)
-        axis.set_yticklabels(['False', 'True'], fontsize=8)
-        axis.set_xlabel('Predicted label', fontsize=8)
-        axis.set_ylabel('True label', fontsize=8)
-        axis.set_title(f'Confusion matrix for class {label}', fontsize=8)
+                ax.text(col,
+                        row,
+                        str(cm_sum[i][row][col]),
+                        ha='center',
+                        va='center',
+                        color='black',
+                        fontsize=8)
+        ax.set_xticks(np.arange(2))
+        ax.set_yticks(np.arange(2))
+        ax.set_xticklabels(['False', 'True'], fontsize=8)
+        ax.set_yticklabels(['False', 'True'], fontsize=8)
+        ax.set_xlabel('Predicted label', fontsize=8)
+        ax.set_ylabel('True label', fontsize=8)
+        ax.set_title(f'Confusion matrix for class {label}', fontsize=8)
     plt.show()
 
 
@@ -634,3 +633,73 @@ def score_test(test_ds, model, metrics, threshold=0.5, sentiment_map=None):
             true = to_sentiments(true, sentiment_map)
         for m in metrics:
             m.update_state(true, predicted)
+
+
+def __plot_roc_curve(ax, fpr, tpr, title, label):
+    ax.plot(fpr, tpr, lw=2, label=label)
+    ax.set_title(title, fontdict={'fontsize': 8})
+    ax.plot([0, 1], [0, 1], color='navy', linestyle='--')
+    ax.set_xlim([0.0, 1.0])
+    ax.set_ylim([0.0, 1.05])
+    ax.set_xlabel('False Positive Rate')
+    ax.set_ylabel('True Positive Rate')
+    ax.legend(loc='lower right')
+
+
+def plot_roc_curves(test_ds, model, classes):
+    '''Plot ROC curve for each class and calculate area under curve.
+    Also plotting micro- and macro-averaged curves.
+
+    Args:
+        test_ds (tf.data.Dataset): dataset for test
+        model (tf.keras.Model): model to evaluate
+        classes (list): list of classes
+    '''
+    predicted, true = [], []
+    for texts, labels in test_ds:
+        predicted.append(model(texts))
+        true.append(labels)
+    predicted = np.concatenate(predicted, axis=0)
+    true = np.concatenate(true, axis=0)
+
+    fpr, tpr, roc_auc = {}, {}, {}
+    num_classes = len(classes)
+    for i in range(num_classes):
+        fpr[i], tpr[i], _ = roc_curve(true[:, i], predicted[:, i])
+        roc_auc[i] = auc(fpr[i], tpr[i])
+
+    # Calculate the micro-average ROC curve and AUC score
+    fpr['micro'], tpr['micro'], _ = roc_curve(true.ravel(), predicted.ravel())
+    roc_auc['micro'] = auc(fpr['micro'], tpr['micro'])
+
+    # Calculate the macro-average ROC curve and AUC score
+    all_fpr = np.unique(np.concatenate([fpr[i] for i in range(num_classes)]))
+    mean_tpr = np.zeros_like(all_fpr)
+    for i, _ in enumerate(classes):
+        mean_tpr += np.interp(all_fpr, fpr[i], tpr[i])
+    mean_tpr /= num_classes
+    fpr['macro'] = all_fpr
+    tpr['macro'] = mean_tpr
+    roc_auc['macro'] = auc(fpr['macro'], tpr['macro'])
+
+    n_plots = num_classes + 1
+    in_row = 3
+    nrows = int(np.ceil(n_plots / in_row))
+    max_nplots = nrows * in_row
+    fig, axs = plt.subplots(nrows=nrows, ncols=in_row, figsize=(20, 55))
+    for i, class_ in enumerate(classes):
+        ax = axs[i // in_row][i % in_row]
+        label = 'ROC curve of class {} (area: {:.4f})'.format(
+            class_, roc_auc[i])
+        title = f'ROC for class {class_}'
+        __plot_roc_curve(ax, fpr[i], tpr[i], title, label)
+
+    ax = axs[-1][-1 * (max_nplots - num_classes)]
+    for type_ in ('micro', 'macro'):
+        label = '{}-average ROC curve (area: {:.4f})'.format(
+            type_, roc_auc[type_])
+        title = 'Micro- and Macro-average ROC'
+        __plot_roc_curve(ax, fpr[type_], tpr[type_], title, label)
+    for row in range(n_plots, max_nplots):
+        axs[-1][max_nplots - row].set_axis_off()
+    plt.show()
