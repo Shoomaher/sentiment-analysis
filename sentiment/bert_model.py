@@ -136,7 +136,7 @@ class BertSentimentModel(Model):
             output layer units)
     '''
 
-    def __init__(self, bert_name, dropout_rate, dense_units, classes):
+    def __init__(self, bert_name, classes):
         super(BertSentimentModel, self).__init__()
         self.standardizer = TextStandardizeLayer()
         self.preprocess = hub.KerasLayer(BERT_PREPROCESS_TF_HUB[bert_name],
@@ -144,9 +144,6 @@ class BertSentimentModel(Model):
         self.encoder = hub.KerasLayer(BERT_MODEL_TF_HUB[bert_name],
                                       trainable=True,
                                       name='BERT_encode')
-        self.dropout1 = Dropout(dropout_rate)
-        self.int_dense = Dense(dense_units, activation='relu')
-        self.dropout2 = Dropout(dropout_rate)
         self.classifier = Dense(len(classes),
                                 activation='sigmoid',
                                 name='classifier')
@@ -156,7 +153,4 @@ class BertSentimentModel(Model):
         preprocessed = self.preprocess(clean_input)
         encoded = self.encoder(preprocessed)
         x = encoded['pooled_output']
-        x = self.dropout1(x)
-        x = self.int_dense(x)
-        x = self.dropout2(x)
         return self.classifier(x)
