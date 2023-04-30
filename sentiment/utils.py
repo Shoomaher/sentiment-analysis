@@ -571,7 +571,34 @@ def plot_class_distr(df, classes, title):
     ax.set_xticklabels(classes, rotation=45, ha='right')
     ax.set_xticks(np.arange(len(classes)))
     for idx, qty in enumerate(counts):
-        ax.text(idx, qty + 15, str(qty), ha='center', fontweight='bold')
+        ax.text(idx, qty + 20, str(qty), ha='center', fontweight='bold')
+    ax.margins(None, 0.1)
+    plt.show()
+
+
+def plot_class_distrh(df, classes, title):
+    '''Plot classes distrubution in dataframe with a horizontal bar plot
+
+    Args:
+        df (pd.DataFrame): dataframe to plot classes
+        classes (list): list of emotions
+        title (str): title for plot
+    '''
+    counts = get_class_counts(df)
+    fig, ax = plt.subplots(figsize=(7, 7))
+    ax.barh(classes[::-1], counts[::-1], align='center', height=0.5)
+    ax.set_title(title)
+    ax.set_ylabel('Classes', fontsize=12)
+    ax.set_xlabel('Elements', fontsize=12)
+    ax.set_yticks(np.arange(len(classes)))
+    for idx, qty in enumerate(counts[::-1]):
+        ax.text(qty + 10,
+                idx,
+                str(qty),
+                va='center',
+                fontweight='bold',
+                fontsize=10)
+    ax.margins(0.2, None)
     plt.show()
 
 
