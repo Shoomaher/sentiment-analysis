@@ -93,7 +93,7 @@ def load_dfs(ds_dir):
     return full_df
 
 
-def oversample(df, threshold):
+def oversample(df, threshold, random=None):
     '''Make oversampling of classes in dataframe that have qty of
     elements lower than the threshold value. Oversampling is performed to
     reach threshold. For example, if threshold is 500 and class 1 has qty
@@ -103,6 +103,7 @@ def oversample(df, threshold):
         df (pd.DataFrame): dataframe to oversample
         low_threshold (int): qty of elements under which the class is
             considered to be low
+        random (int, optional): Random seed to use. Defaults to None.
 
     Returns:
         pd.DataFrame: updated dataframe
@@ -117,7 +118,9 @@ def oversample(df, threshold):
                                                 regex=True))
         class_df = df[class_mask]
         df.drop(class_df.index, axis=0, inplace=True)
-        class_df = class_df.sample(n=threshold, replace=True)
+        class_df = class_df.sample(n=threshold,
+                                   replace=True,
+                                   random_state=random)
         recombined.append(class_df)
     return pd.concat([df] + recombined, axis=0, ignore_index=True)
 
@@ -246,7 +249,7 @@ def make_dataframes(ds_dir,
                                                  test_only_singles,
                                                  random=random)
     if oversample_low:
-        train_df = oversample(train_df, low_threshold)
+        train_df = oversample(train_df, low_threshold, random)
     for df in (train_df, val_df, test_df):
         assert df.index.is_unique
     train_df = train_df.sample(frac=1, random_state=random)
