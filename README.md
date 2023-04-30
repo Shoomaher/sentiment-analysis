@@ -41,11 +41,11 @@ You can use notebooks as examples to develop your own models. See `requirements.
 ### ✅ Results
 Using `small_bert/bert_en_uncased_L-2_H-128_A-2` classifier reached the following
 metrics in emotions prediction:  
-`F1-Score (micro): 0.5874`  
-`F1-Score (macro): 0.5128`  
+`F1-Score (micro): 0.5835`  
+`F1-Score (macro): 0.5070`  
 and in sentiments prediction:  
-`F1-Score (micro): 0.7797`  
-`F1-Score (macro): 0.7396`  
+`F1-Score (micro): 0.7760`  
+`F1-Score (macro): 0.7349`  
   
 See examples below
 ![Example](example.png)
