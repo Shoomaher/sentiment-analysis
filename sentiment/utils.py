@@ -93,7 +93,7 @@ def load_dfs(ds_dir):
     return full_df
 
 
-def oversample(df, threshold):
+def oversample(df, threshold, random=None):
     '''Make oversampling of classes in dataframe that have qty of
     elements lower than the threshold value. Oversampling is performed to
     reach threshold. For example, if threshold is 500 and class 1 has qty
@@ -103,6 +103,7 @@ def oversample(df, threshold):
         df (pd.DataFrame): dataframe to oversample
         low_threshold (int): qty of elements under which the class is
             considered to be low
+        random (int, optional): Random seed to use. Defaults to None.
 
     Returns:
         pd.DataFrame: updated dataframe
@@ -117,7 +118,9 @@ def oversample(df, threshold):
                                                 regex=True))
         class_df = df[class_mask]
         df.drop(class_df.index, axis=0, inplace=True)
-        class_df = class_df.sample(n=threshold, replace=True)
+        class_df = class_df.sample(n=threshold,
+                                   replace=True,
+                                   random_state=random)
         recombined.append(class_df)
     return pd.concat([df] + recombined, axis=0, ignore_index=True)
 
@@ -246,7 +249,7 @@ def make_dataframes(ds_dir,
                                                  test_only_singles,
                                                  random=random)
     if oversample_low:
-        train_df = oversample(train_df, low_threshold)
+        train_df = oversample(train_df, low_threshold, random)
     for df in (train_df, val_df, test_df):
         assert df.index.is_unique
     train_df = train_df.sample(frac=1, random_state=random)
@@ -345,12 +348,13 @@ def print_metrics(metrics, floatfmt='.5f'):
                    floatfmt=floatfmt))
 
 
-def plot_history(metrics, title):
+def plot_history(metrics, title, savepath=None):
     '''Plot metrics history over model fit epochs
 
     Args:
         metrics (dict): Metrics to plot
         title (str): Title to add
+        savepath (str): export plot to png. Defaults to None.
     '''
     fig = plt.figure(figsize=(10, 6))
     fig.tight_layout()
@@ -362,6 +366,12 @@ def plot_history(metrics, title):
         plt.ylabel('Metric value')
         plt.xlabel('Epochs')
         plt.legend()
+    if savepath:
+        plt.savefig(savepath,
+                    facecolor='white',
+                    dpi=500,
+                    bbox_inches='tight',
+                    transparent=True)
     plt.show()
 
 
@@ -423,7 +433,11 @@ def test_examples(model, classes):
         print('{}: {}'.format(examples[idx], ' '.join(with_emojis)))
 
 
-def plot_conf_mtrx_all(model, test_ds, classes, normalized=True):
+def plot_conf_mtrx_all(model,
+                       test_ds,
+                       classes,
+                       normalized=True,
+                       savepath=None):
     '''Plot confusion matrix for all classes using all vs all strategy.
     Be aware that only single-labelled classes are needed. Emotion with
     max prediction from model will be selected
@@ -433,6 +447,7 @@ def plot_conf_mtrx_all(model, test_ds, classes, normalized=True):
         test_ds (tf.data.Dataset): dataset for test
         classes (list): list of emotions
         normalized (bool, optional): Normalize matrix. Defaults to True.
+        savepath (str): export plot to png. Defaults to None.
     '''
     num_classes = len(classes)
     mtrx = tf.zeros([num_classes, num_classes], dtype=tf.int32)
@@ -447,22 +462,35 @@ def plot_conf_mtrx_all(model, test_ds, classes, normalized=True):
         mtrx[np.isnan(mtrx)] = 0
 
     fig, ax = plt.subplots(figsize=(25, 25))
-    im = ax.imshow(mtrx, interpolation='nearest', cmap=plt.cm.Blues)
-    ax.figure.colorbar(im, ax=ax)
-    ax.set(xticks=np.arange(mtrx.shape[1]),
-           yticks=np.arange(mtrx.shape[0]),
-           xticklabels=classes,
-           yticklabels=classes,
-           xlabel='Predicted label',
-           ylabel='True label')
-    ax.set_xticklabels(classes, rotation=45)
+    im = ax.imshow(mtrx,
+                   interpolation='nearest',
+                   cmap=plt.cm.Blues)
+    cbar = ax.figure.colorbar(im, ax=ax)
+    cbar.ax.tick_params(labelsize=14)
+    ax.set(xticks=np.arange(mtrx.shape[1]), yticks=np.arange(mtrx.shape[0]))
+    ax.set_xlabel('Predicted label', fontsize=14)
+    ax.set_ylabel('True label', fontsize=14)
+    ax.set_xticklabels(classes, rotation=45, fontsize=14)
+    ax.set_yticklabels(classes, fontsize=14)
     thresh = mtrx.max() / 2.
     for i in range(mtrx.shape[0]):
         for j in range(mtrx.shape[1]):
             color = 'white' if mtrx[i, j] > thresh else 'black'
             val_fmt = '{:.4f}'.format(mtrx[i, j])
-            ax.text(j, i, val_fmt, ha='center', va='center', color=color)
+            ax.text(j,
+                    i,
+                    val_fmt,
+                    ha='center',
+                    va='center',
+                    color=color,
+                    fontsize=12)
     fig.tight_layout()
+    if savepath:
+        plt.savefig(savepath,
+                    facecolor='white',
+                    dpi=500,
+                    bbox_inches='tight',
+                    transparent=True)
     plt.show()
 
 
@@ -470,7 +498,8 @@ def plot_conf_mtrx_per_class(model,
                              test_ds,
                              classes,
                              threshold=0.5,
-                             select_max_class=False):
+                             select_max_class=False,
+                             savepath=None):
     '''Plot confusion matrixes for each class separately
 
     Args:
@@ -481,6 +510,7 @@ def plot_conf_mtrx_per_class(model,
             class is activated. Defaults to 0.5
         select_max_class (bool, optional): Select class with max
             prediction. If not - use threshold. Defaults to False.
+        savepath (str): export plot to png. Defaults to None.
     '''
     cm_sum = None
     for x, y_true in test_ds:
@@ -505,8 +535,8 @@ def plot_conf_mtrx_per_class(model,
                             sharex=False,
                             sharey=False,
                             gridspec_kw={
-                                'hspace': 0.2,
-                                'wspace': 0.3
+                                'hspace': 0.1,
+                                'wspace': 0.5
                             })
     for i, label in enumerate(classes):
         row_idx = i // in_row
@@ -522,15 +552,21 @@ def plot_conf_mtrx_per_class(model,
                         str(cm_sum[i][row][col]),
                         ha='center',
                         va='center',
-                        color='black',
-                        fontsize=8)
+                        color=('white' if row == 0 and col == 0 else 'black'),
+                        fontsize=14)
         ax.set_xticks(np.arange(2))
         ax.set_yticks(np.arange(2))
-        ax.set_xticklabels(['False', 'True'], fontsize=8)
-        ax.set_yticklabels(['False', 'True'], fontsize=8)
-        ax.set_xlabel('Predicted label', fontsize=8)
-        ax.set_ylabel('True label', fontsize=8)
-        ax.set_title(f'Confusion matrix for class {label}', fontsize=8)
+        ax.set_xticklabels(['False', 'True'], fontsize=14)
+        ax.set_yticklabels(['False', 'True'], fontsize=14)
+        ax.set_xlabel('Predicted label', fontsize=14)
+        ax.set_ylabel('True label', fontsize=14)
+        ax.set_title(label, fontsize=14)
+    if savepath:
+        plt.savefig(savepath,
+                    dpi=500,
+                    bbox_inches='tight',
+                    facecolor='white',
+                    transparent=True)
     plt.show()
 
 
@@ -551,13 +587,14 @@ def get_class_counts(df):
     return class_counts
 
 
-def plot_class_distr(df, classes, title):
+def plot_class_distr(df, classes, title, savepath=None):
     '''Plot classes distrubution in dataframe
 
     Args:
         df (pd.DataFrame): dataframe to plot classes
         classes (list): list of emotions
         title (str): title for plot
+        savepath (str): export plot to png. Defaults to None.
     '''
     counts = get_class_counts(df)
     fig, ax = plt.subplots(figsize=(15, 5))
@@ -568,7 +605,47 @@ def plot_class_distr(df, classes, title):
     ax.set_xticklabels(classes, rotation=45, ha='right')
     ax.set_xticks(np.arange(len(classes)))
     for idx, qty in enumerate(counts):
-        ax.text(idx, qty + 15, str(qty), ha='center', fontweight='bold')
+        ax.text(idx, qty + 20, str(qty), ha='center', fontweight='bold')
+    ax.margins(None, 0.1)
+    if savepath:
+        plt.savefig(savepath,
+                    dpi=500,
+                    bbox_inches='tight',
+                    facecolor='white',
+                    transparent=True)
+    plt.show()
+
+
+def plot_class_distrh(df, classes, title, savepath=None):
+    '''Plot classes distrubution in dataframe with a horizontal bar plot
+
+    Args:
+        df (pd.DataFrame): dataframe to plot classes
+        classes (list): list of emotions
+        title (str): title for plot
+        savepath (str): export plot to png. Defaults to None.
+    '''
+    counts = get_class_counts(df)
+    fig, ax = plt.subplots(figsize=(7, 7))
+    ax.barh(classes[::-1], counts[::-1], align='center', height=0.5)
+    ax.set_title(title)
+    ax.set_ylabel('Classes', fontsize=12)
+    ax.set_xlabel('Elements', fontsize=12)
+    ax.set_yticks(np.arange(len(classes)))
+    for idx, qty in enumerate(counts[::-1]):
+        ax.text(qty + 10,
+                idx,
+                str(qty),
+                va='center',
+                fontweight='bold',
+                fontsize=10)
+    ax.margins(0.2, None)
+    if savepath:
+        plt.savefig(savepath,
+                    dpi=500,
+                    bbox_inches='tight',
+                    facecolor='white',
+                    transparent=True)
     plt.show()
 
 
@@ -637,16 +714,18 @@ def score_test(test_ds, model, metrics, threshold=0.5, sentiment_map=None):
 
 def __plot_roc_curve(ax, fpr, tpr, title, label):
     ax.plot(fpr, tpr, lw=2, label=label)
-    ax.set_title(title, fontdict={'fontsize': 8})
+    ax.set_title(title, fontdict={'fontsize': 16})
     ax.plot([0, 1], [0, 1], color='navy', linestyle='--')
     ax.set_xlim([0.0, 1.0])
     ax.set_ylim([0.0, 1.05])
-    ax.set_xlabel('False Positive Rate')
-    ax.set_ylabel('True Positive Rate')
-    ax.legend(loc='lower right')
+    ax.set_xlabel('False Positive Rate', fontdict={'fontsize': 16})
+    ax.set_ylabel('True Positive Rate', fontdict={'fontsize': 16})
+    ax.tick_params(axis='x', labelsize=16)
+    ax.tick_params(axis='y', labelsize=16)
+    ax.legend(loc='best', fontsize=12)
 
 
-def plot_roc_curves(test_ds, model, classes):
+def plot_roc_curves(test_ds, model, classes, savepath=None):
     '''Plot ROC curve for each class and calculate area under curve.
     Also plotting micro- and macro-averaged curves.
 
@@ -654,6 +733,7 @@ def plot_roc_curves(test_ds, model, classes):
         test_ds (tf.data.Dataset): dataset for test
         model (tf.keras.Model): model to evaluate
         classes (list): list of classes
+        savepath (str): export plot to png. Defaults to None.
     '''
     predicted, true = [], []
     for texts, labels in test_ds:
@@ -686,7 +766,8 @@ def plot_roc_curves(test_ds, model, classes):
     in_row = 3
     nrows = int(np.ceil(n_plots / in_row))
     max_nplots = nrows * in_row
-    fig, axs = plt.subplots(nrows=nrows, ncols=in_row, figsize=(20, 55))
+    fig, axs = plt.subplots(nrows=nrows, ncols=in_row, figsize=(15, 45))
+    fig.tight_layout(pad=5)
     for i, class_ in enumerate(classes):
         ax = axs[i // in_row][i % in_row]
         label = 'ROC curve of class {} (area: {:.4f})'.format(
@@ -702,4 +783,10 @@ def plot_roc_curves(test_ds, model, classes):
         __plot_roc_curve(ax, fpr[type_], tpr[type_], title, label)
     for row in range(n_plots, max_nplots):
         axs[-1][max_nplots - row].set_axis_off()
+    if savepath:
+        plt.savefig(savepath,
+                    dpi=500,
+                    bbox_inches='tight',
+                    facecolor='white',
+                    transparent=True)
     plt.show()

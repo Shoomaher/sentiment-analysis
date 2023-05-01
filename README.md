@@ -10,8 +10,8 @@ dataset extracted from Reddit comments. Dataset contains 27 emotions + neutral.
 
 ### 📈 Modelling  
 This repository contains notebooks training classifier `bert_model.py` based on [BERT model](https://github.com/google-research/bert). 
-Models solve multiclass, multilabel classification problem. See notebooks
-`bert_model_v0.7.1.ipynb` and `bert_model_v0.7.2.ipynb`.
+Models solve multiclass, multilabel classification problem. See notebook
+`bert_model_v0.7.1.ipynb`
 
 ### 🍳 Data preparation  
 High-quality data is important for good modelling. In `standardize.py` I created
@@ -41,11 +41,11 @@ You can use notebooks as examples to develop your own models. See `requirements.
 ### ✅ Results
 Using `small_bert/bert_en_uncased_L-2_H-128_A-2` classifier reached the following
 metrics in emotions prediction:  
-`F1-Score (micro): 0.5788`  
-`F1-Score (macro): 0.5009`  
+`F1-Score (micro): 0.5835`  
+`F1-Score (macro): 0.5070`  
 and in sentiments prediction:  
-`F1-Score (micro): 0.7754`  
-`F1-Score (macro): 0.7400`  
+`F1-Score (micro): 0.7760`  
+`F1-Score (macro): 0.7349`  
   
 See examples below
 ![Example](example.png)
