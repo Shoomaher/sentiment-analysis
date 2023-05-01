@@ -466,12 +466,12 @@ def plot_conf_mtrx_all(model,
                    interpolation='nearest',
                    cmap=plt.cm.Blues)
     cbar = ax.figure.colorbar(im, ax=ax)
-    cbar.ax.tick_params(labelsize=14)
+    cbar.ax.tick_params(labelsize=18)
     ax.set(xticks=np.arange(mtrx.shape[1]), yticks=np.arange(mtrx.shape[0]))
-    ax.set_xlabel('Predicted label', fontsize=14)
-    ax.set_ylabel('True label', fontsize=14)
-    ax.set_xticklabels(classes, rotation=45, fontsize=14)
-    ax.set_yticklabels(classes, fontsize=14)
+    ax.set_xlabel('Predicted label', fontsize=18)
+    ax.set_ylabel('True label', fontsize=18)
+    ax.set_xticklabels(classes, rotation=45, fontsize=18)
+    ax.set_yticklabels(classes, fontsize=18)
     thresh = mtrx.max() / 2.
     for i in range(mtrx.shape[0]):
         for j in range(mtrx.shape[1]):
